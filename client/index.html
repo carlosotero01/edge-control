@@ -1,0 +1,146 @@
+<!-- index.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Edge System Control Panel</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">◻︎</div>
+      <div class="brand-text">
+        <div class="title">Edge System Control Panel</div>
+        <div class="subtitle">Camera + Temperature Collection</div>
+      </div>
+    </div>
+    <div class="status">
+      <span class="pill" id="connPill" data-state="unknown">Connection: Unknown</span>
+      <span class="pill" id="tlsPill" data-state="ok">TLS: Expected</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="grid">
+      <!-- Temperature Card -->
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <h2>Temperature</h2>
+            <p class="muted">Start/stop collection and view the latest reading.</p>
+          </div>
+          <div class="chip" id="tempStateChip" data-state="stopped">Stopped</div>
+        </div>
+
+        <div class="card-body">
+          <div class="metric">
+            <div class="metric-label">Latest reading</div>
+            <div class="metric-value">
+              <span id="tempValue">—</span>
+              <span class="unit" id="tempUnit">°C</span>
+            </div>
+            <div class="metric-meta">
+              <span class="muted">Timestamp:</span>
+              <span id="tempTime" class="mono muted">—</span>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="btn primary" id="btnTempStart">Start Collection</button>
+            <button class="btn" id="btnTempStop" disabled>Stop Collection</button>
+            <button class="btn ghost" id="btnTempOnce">Read Once</button>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="row">
+            <label class="field">
+              <span class="field-label">Auto-refresh (seconds)</span>
+              <input id="tempInterval" type="number" min="1" step="1" value="2" />
+            </label>
+
+            <label class="field">
+              <span class="field-label">Display units</span>
+              <select id="tempUnits">
+                <option value="C" selected>°C</option>
+                <option value="F">°F</option>
+              </select>
+            </label>
+          </div>
+
+          <p class="hint">
+            Tip: “Start Collection” polls the backend periodically. “Read Once” takes a single measurement.
+          </p>
+        </div>
+      </article>
+
+      <!-- Camera Card -->
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <h2>Camera</h2>
+            <p class="muted">Start/stop video feed and preview the stream.</p>
+          </div>
+          <div class="chip" id="camStateChip" data-state="off">Off</div>
+        </div>
+
+        <div class="card-body">
+          <div class="video-shell">
+            <!-- Option A: MJPEG stream via <img src="..."> -->
+            <!-- Option B: WebRTC/RTSP/HLS would need different players -->
+            <div class="video-placeholder" id="videoPlaceholder">
+              <div class="placeholder-title">No feed</div>
+              <div class="placeholder-subtitle">Start the camera to view the stream.</div>
+            </div>
+            <img id="videoFeed" class="video" alt="Camera Feed" />
+          </div>
+
+          <div class="actions">
+            <button class="btn primary" id="btnCamOn">Turn Camera On</button>
+            <button class="btn" id="btnCamOff" disabled>Turn Camera Off</button>
+            <button class="btn ghost" id="btnCamReload" disabled>Reload Feed</button>
+          </div>
+
+          <div class="divider"></div>
+
+          <label class="field">
+            <span class="field-label">Video feed URL</span>
+            <input id="videoUrl" type="url" placeholder="https://your-host/video.mjpg" />
+            <span class="field-help">For quick demos, MJPEG endpoints work well with an <code>&lt;img&gt;</code> tag.</span>
+          </label>
+
+          <p class="hint">
+            Note: Your backend should expose a secure (TLS) video URL (e.g., MJPEG over HTTPS) or a WebRTC page.
+          </p>
+        </div>
+      </article>
+    </section>
+
+    <!-- Activity / Events -->
+    <section class="card log-card">
+      <div class="card-head">
+        <div>
+          <h2>Activity</h2>
+          <p class="muted">Local UI log of actions and results.</p>
+        </div>
+        <div class="actions">
+          <button class="btn ghost" id="btnClearLog">Clear</button>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <div class="log" id="log"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span class="muted">Professional UI theme inspired by ChatGPT light mode.</span>
+    <span class="muted mono" id="buildInfo">UI v1</span>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
