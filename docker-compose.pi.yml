@@ -1,0 +1,7 @@
+services:
+  edge-control:
+    image: ghcr.io/carlosotero01/edge-control:latest
+    container_name: edge-control
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
