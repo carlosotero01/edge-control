@@ -1,10 +1,11 @@
-<!-- index.html -->
+<!--v1.0.1-->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Edge System Control Panel</title>
+
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
@@ -12,7 +13,7 @@
     <div class="brand">
       <div class="logo" aria-hidden="true">◻︎</div>
       <div class="brand-text">
-        <div class="title">Edge System Control Panel v2</div>
+        <div class="title">Edge System Control Panel</div>
         <div class="subtitle">Camera + Temperature Collection</div>
       </div>
     </div>
@@ -24,7 +25,6 @@
 
   <main class="container">
     <section class="grid">
-      <!-- Temperature Card -->
       <article class="card">
         <div class="card-head">
           <div>
@@ -76,7 +76,6 @@
         </div>
       </article>
 
-      <!-- Camera Card -->
       <article class="card">
         <div class="card-head">
           <div>
@@ -88,8 +87,6 @@
 
         <div class="card-body">
           <div class="video-shell">
-            <!-- Option A: MJPEG stream via <img src="..."> -->
-            <!-- Option B: WebRTC/RTSP/HLS would need different players -->
             <div class="video-placeholder" id="videoPlaceholder">
               <div class="placeholder-title">No feed</div>
               <div class="placeholder-subtitle">Start the camera to view the stream.</div>
@@ -108,17 +105,12 @@
           <label class="field">
             <span class="field-label">Video feed URL</span>
             <input id="videoUrl" type="url" placeholder="https://your-host/video.mjpg" />
-            <span class="field-help">For quick demos, MJPEG endpoints work well with an <code>&lt;img&gt;</code> tag.</span>
+            <span class="field-help">MJPEG over HTTPS recommended.</span>
           </label>
-
-          <p class="hint">
-            Note: Your backend should expose a secure (TLS) video URL (e.g., MJPEG over HTTPS) or a WebRTC page.
-          </p>
         </div>
       </article>
     </section>
 
-    <!-- Activity / Events -->
     <section class="card log-card">
       <div class="card-head">
         <div>
@@ -137,10 +129,11 @@
   </main>
 
   <footer class="footer">
-    <span class="muted">Professional UI theme inspired by ChatGPT light mode.</span>
-    <span class="muted mono" id="buildInfo">UI v1</span>
+    <span class="muted">Simulation Mode Available</span>
+    <span class="muted mono" id="buildInfo">UI v1.0.2-dev</span>
   </footer>
 
   <script src="/static/app.js"></script>
 </body>
 </html>
+

@@ -1,39 +1,28 @@
-// app.js
+// -------------------------------------------------------------
+// CONFIGURATION - v1.0.1
+// -------------------------------------------------------------
 
-// -----------------------------
-// CONFIG (edit these endpoints)
-// -----------------------------
-const API_BASE = ""; // FastAPI base URL (use HTTPS in production)
+// If true, no backend is required; the UI generates mock data in the browser.
+// If false, the UI calls the FastAPI backend endpoints.
+const USE_SIMULATION_MODE = false;
+
+// When the UI is served by the same FastAPI app, keep this empty so fetch()
+// hits the same host:port as the page itself.
+const API_BASE = "";
+
 const ENDPOINTS = {
-  // Temperature:
-  // - read once: GET /temperature
-  // - start polling: handled in UI by setInterval calling /temperature
   temperature: `${API_BASE}/temperature`,
-
-  // Camera power: POST /power?powerOn=true|false
   cameraPower: `${API_BASE}/power`,
-
-  // Optional: a status/health endpoint (recommended)
-  health: `${API_BASE}/health`
+  health: `${API_BASE}/health`,
 };
 
-// Video stream URL is user-provided via input (must be https for TLS)
-
-// -----------------------------
+// -------------------------------------------------------------
 // DOM helpers
-// -----------------------------
+// -------------------------------------------------------------
 const $ = (id) => document.getElementById(id);
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-function logLine(message, level = "info") {
-  const el = document.createElement("div");
-  el.className = "line";
-  el.innerHTML = `<span class="ts">${nowIso()}</span><span class="${level}">${escapeHtml(message)}</span>`;
-  const log = $("log");
-  log.prepend(el);
 }
 
 function escapeHtml(str) {
@@ -43,6 +32,14 @@ function escapeHtml(str) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function logLine(message, level = "info") {
+  const el = document.createElement("div");
+  el.className = "line";
+  el.innerHTML = `<span class="ts">${nowIso().split("T")[1].split(".")[0]}</span><span class="${level}">${escapeHtml(message)}</span>`;
+  const log = $("log");
+  log.prepend(el);
 }
 
 function setChip(chipEl, state, label) {
@@ -55,70 +52,70 @@ function setPill(pillEl, state, label) {
   pillEl.textContent = label;
 }
 
-// -----------------------------
-// State
-// -----------------------------
-let tempTimer = null;
-let tempLastC = null;
+// -------------------------------------------------------------
+// MOCK SERVER LOGIC (Simulation Mode)
+// -------------------------------------------------------------
+let simTemp = 22.0;
 
-let camOn = false;
+function getMockTemperature() {
+  const delta = (Math.random() - 0.5) * 1.5;
+  simTemp += delta;
+  if (simTemp > 35) simTemp -= 1.0;
+  if (simTemp < 10) simTemp += 1.0;
 
-// -----------------------------
-// API calls (assumes TLS is enforced by using https endpoints)
-// -----------------------------
+  return { value_c: simTemp, timestamp: nowIso() };
+}
+
+async function mockNetworkDelay() {
+  return new Promise((r) => setTimeout(r, 400));
+}
+
+// -------------------------------------------------------------
+// API WRAPPERS
+// -------------------------------------------------------------
 async function apiGet(url) {
-  const res = await fetch(url, {
-    method: "GET",
-    credentials: "include",
-    headers: { "Accept": "application/json" }
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`GET ${url} failed (${res.status}): ${text}`);
+  if (USE_SIMULATION_MODE) {
+    await mockNetworkDelay();
+    if (url.includes("temperature")) return getMockTemperature();
+    if (url.includes("health")) return { status: "ok" };
+    throw new Error("404 Not Found (Mock)");
   }
+
+  const res = await fetch(url, { method: "GET", headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`GET error ${res.status}`);
   return res.json();
 }
 
 async function apiPost(url) {
-  const res = await fetch(url, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Accept": "application/json" }
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`POST ${url} failed (${res.status}): ${text}`);
+  if (USE_SIMULATION_MODE) {
+    await mockNetworkDelay();
+    const urlObj = new URL(url, window.location.origin);
+    const powerOn = urlObj.searchParams.get("powerOn") === "true";
+    return { powerOn };
   }
+
+  const res = await fetch(url, { method: "POST", headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`POST error ${res.status}`);
   return res.json();
 }
 
-// -----------------------------
-// Temperature UI
-// Expected backend response example:
-//   { "value_c": 24.12, "timestamp": "2026-01-15T17:20:01Z" }
-// If your backend returns different field names, adjust parseTempResponse().
-// -----------------------------
-function parseTempResponse(data) {
-  // Try a few common shapes
-  if (typeof data?.value_c === "number") return { c: data.value_c, ts: data.timestamp ?? null };
-  if (typeof data?.celsius === "number") return { c: data.celsius, ts: data.timestamp ?? null };
-  if (typeof data?.temperature_c === "number") return { c: data.temperature_c, ts: data.timestamp ?? null };
-
-  // If it is just a number, treat it as Celsius
-  if (typeof data === "number") return { c: data, ts: null };
-
-  throw new Error("Unexpected temperature response shape.");
-}
+// -------------------------------------------------------------
+// TEMPERATURE LOGIC
+// -------------------------------------------------------------
+let tempTimer = null;
 
 function cToF(c) {
   return (c * 9) / 5 + 32;
 }
 
-function renderTemp(c, ts) {
-  tempLastC = c;
+function parseTempResponse(data) {
+  if (typeof data?.value_c === "number") return { c: data.value_c, ts: data.timestamp };
+  if (typeof data?.temperature_c === "number") return { c: data.temperature_c, ts: data.timestamp };
+  if (typeof data === "number") return { c: data, ts: null };
+  throw new Error("Invalid temp data format");
+}
 
+function renderTemp(c, ts) {
   const units = $("tempUnits").value;
   let shown = c;
   let unitLabel = "°C";
@@ -130,14 +127,19 @@ function renderTemp(c, ts) {
 
   $("tempValue").textContent = Number.isFinite(shown) ? shown.toFixed(2) : "—";
   $("tempUnit").textContent = unitLabel;
-  $("tempTime").textContent = ts ? String(ts) : nowIso();
+  $("tempTime").textContent = ts ? ts.split("T")[1].replace("Z", "") : "--:--:--";
 }
 
 async function readTemperatureOnce() {
-  const data = await apiGet(ENDPOINTS.temperature);
-  const { c, ts } = parseTempResponse(data);
-  renderTemp(c, ts);
-  logLine(`Temperature reading received: ${c.toFixed(2)} °C`, "ok");
+  try {
+    const data = await apiGet(ENDPOINTS.temperature);
+    const { c, ts } = parseTempResponse(data);
+    renderTemp(c, ts);
+    logLine(`Read: ${c.toFixed(2)} °C`, "ok");
+  } catch (e) {
+    logLine(`Temp Error: ${e.message}`, "bad");
+    setChip($("tempStateChip"), "error", "Error");
+  }
 }
 
 function startTempPolling() {
@@ -147,21 +149,10 @@ function startTempPolling() {
   setChip($("tempStateChip"), "running", "Running");
   $("btnTempStart").disabled = true;
   $("btnTempStop").disabled = false;
+  logLine(`Polling started (${seconds}s).`, "info");
 
-  logLine(`Temperature polling started (every ${seconds}s).`, "info");
-
-  // Immediate read + interval reads
-  readTemperatureOnce().catch((e) => {
-    logLine(`Temperature read failed: ${e.message}`, "bad");
-    setChip($("tempStateChip"), "error", "Error");
-  });
-
-  tempTimer = setInterval(() => {
-    readTemperatureOnce().catch((e) => {
-      logLine(`Temperature read failed: ${e.message}`, "bad");
-      setChip($("tempStateChip"), "error", "Error");
-    });
-  }, seconds * 1000);
+  readTemperatureOnce();
+  tempTimer = setInterval(readTemperatureOnce, seconds * 1000);
 }
 
 function stopTempPolling() {
@@ -172,14 +163,14 @@ function stopTempPolling() {
   setChip($("tempStateChip"), "stopped", "Stopped");
   $("btnTempStart").disabled = false;
   $("btnTempStop").disabled = true;
-  logLine("Temperature polling stopped.", "info");
+  logLine("Polling stopped.", "info");
 }
 
-// -----------------------------
-// Camera UI
-// Backend: POST /power?powerOn=true|false
-// Video feed: set <img src="..."> (Mjpeg over HTTPS recommended)
-// -----------------------------
+// -------------------------------------------------------------
+// CAMERA LOGIC (still stubbed)
+// -------------------------------------------------------------
+let camOn = false;
+
 function setVideoVisible(visible) {
   const img = $("videoFeed");
   const placeholder = $("videoPlaceholder");
@@ -192,77 +183,64 @@ function setVideoVisible(visible) {
   }
 }
 
-function loadVideoFeed() {
-  const url = $("videoUrl").value.trim();
-  if (!url) {
-    throw new Error("Please enter a video feed URL.");
-  }
-  if (!url.startsWith("https://")) {
-    // keep it strict to match your TLS requirement
-    throw new Error("Video feed URL must start with https:// (TLS required).");
-  }
-
-  // Bust cache so reload works reliably
-  const bust = (url.includes("?") ? "&" : "?") + "t=" + Date.now();
-  $("videoFeed").src = url + bust;
-  setVideoVisible(true);
-}
-
 async function setCameraPower(powerOn) {
-  const url = `${ENDPOINTS.cameraPower}?powerOn=${powerOn ? "true" : "false"}`;
-  const data = await apiPost(url);
-
-  // If your backend returns { powerOn: true/false }, we’ll use it.
-  const on = typeof data?.powerOn === "boolean" ? data.powerOn : powerOn;
-
-  camOn = on;
-
-  if (camOn) {
-    setChip($("camStateChip"), "on", "On");
-    $("btnCamOn").disabled = true;
-    $("btnCamOff").disabled = false;
-    $("btnCamReload").disabled = false;
-    logLine("Camera powered ON.", "ok");
-
-    // Try to load feed if URL provided
-    const urlValue = $("videoUrl").value.trim();
-    if (urlValue) {
-      try {
-        loadVideoFeed();
-        logLine("Video feed loaded.", "ok");
-      } catch (e) {
-        logLine(`Camera is on, but feed not loaded: ${e.message}`, "bad");
-      }
-    }
-  } else {
-    setChip($("camStateChip"), "off", "Off");
-    $("btnCamOn").disabled = false;
-    $("btnCamOff").disabled = true;
-    $("btnCamReload").disabled = true;
-    logLine("Camera powered OFF.", "info");
-
-    // Stop showing feed
-    $("videoFeed").src = "";
-    setVideoVisible(false);
-  }
-}
-
-// -----------------------------
-// Connection indicator (optional)
-// -----------------------------
-async function checkHealth() {
   try {
-    await apiGet(ENDPOINTS.health);
-    setPill($("connPill"), "ok", "Connection: OK");
-  } catch {
-    setPill($("connPill"), "bad", "Connection: Error");
+    const url = `${ENDPOINTS.cameraPower}?powerOn=${powerOn}`;
+    const data = await apiPost(url);
+    camOn = data.powerOn;
+
+    if (camOn) {
+      setChip($("camStateChip"), "on", "On");
+      $("btnCamOn").disabled = true;
+      $("btnCamOff").disabled = false;
+      $("btnCamReload").disabled = false;
+      logLine("Camera ON", "ok");
+
+      const urlVal = $("videoUrl").value.trim();
+      if (urlVal) {
+        $("videoFeed").src = urlVal;
+        setVideoVisible(true);
+      } else {
+        logLine("No video URL set. Enter a feed URL to display.", "info");
+      }
+    } else {
+      setChip($("camStateChip"), "off", "Off");
+      $("btnCamOn").disabled = false;
+      $("btnCamOff").disabled = true;
+      $("btnCamReload").disabled = true;
+      logLine("Camera OFF", "info");
+      setVideoVisible(false);
+      $("videoFeed").src = "";
+    }
+  } catch (e) {
+    logLine(`Cam Error: ${e.message}`, "bad");
   }
 }
 
-// -----------------------------
-// Wire up events
-// -----------------------------
+// -------------------------------------------------------------
+// INIT
+// -------------------------------------------------------------
 window.addEventListener("DOMContentLoaded", () => {
-  // Buttons
-  $("btnTempStart").addEventListener("click", () => startTempPolling());
-  $("
+  $("btnTempStart").addEventListener("click", startTempPolling);
+  $("btnTempStop").addEventListener("click", stopTempPolling);
+  $("btnTempOnce").addEventListener("click", readTemperatureOnce);
+
+  $("btnCamOn").addEventListener("click", () => setCameraPower(true));
+  $("btnCamOff").addEventListener("click", () => setCameraPower(false));
+  $("btnCamReload").addEventListener("click", () => {
+    const urlVal = $("videoUrl").value.trim();
+    if (urlVal) $("videoFeed").src = urlVal + (urlVal.includes("?") ? "&" : "?") + "t=" + Date.now();
+  });
+
+  $("btnClearLog").addEventListener("click", () => ($("log").innerHTML = ""));
+
+  apiGet(ENDPOINTS.health)
+    .then(() => setPill($("connPill"), "ok", "Connection: OK"))
+    .catch(() => setPill($("connPill"), "bad", "Offline"));
+
+  if (USE_SIMULATION_MODE) {
+    logLine("Simulation Mode Active. No backend required.", "info");
+    setPill($("connPill"), "ok", "Simulated OK");
+  }
+});
+
