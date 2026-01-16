@@ -1,3 +1,4 @@
+# v1.0.1
 from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -8,6 +9,8 @@ import random
 
 app = FastAPI(title="Edge Control")
 
+current_sim_temp = 22.0
+
 class PowerStateResponse(BaseModel):
     powerOn: bool
 
@@ -15,8 +18,8 @@ class TempResponse(BaseModel):
     value_c: float
     timestamp: str
 
-ROOT_DIR = Path(__file__).resolve().parents[2]     # /app
-CLIENT_DIR = ROOT_DIR / "client"           # /app/client
+ROOT_DIR = Path(__file__).resolve().parents[2]
+CLIENT_DIR = ROOT_DIR / "client"
 
 app.mount("/static", StaticFiles(directory=str(CLIENT_DIR)), name="static")
 
@@ -30,12 +33,21 @@ def health():
 
 @app.post("/power", response_model=PowerStateResponse)
 def set_power_state(powerOn: bool = Query(...)):
-    # TODO: Replace with real camera control
     return PowerStateResponse(powerOn=powerOn)
 
 @app.get("/temperature", response_model=TempResponse)
 def get_temperature():
-    # TODO: Replace with real sensor read
-    value_c = round(20.0 + random.random() * 5.0, 2)
+    global current_sim_temp
+
+    delta = random.uniform(-0.5, 0.5)
+    current_sim_temp += delta
+
+    if current_sim_temp > 30.0:
+        current_sim_temp -= 0.2
+    elif current_sim_temp < 15.0:
+        current_sim_temp += 0.2
+
+    value_c = round(current_sim_temp, 2)
     ts = datetime.now(timezone.utc).isoformat()
     return TempResponse(value_c=value_c, timestamp=ts)
+
