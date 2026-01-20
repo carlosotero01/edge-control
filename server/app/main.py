@@ -1,4 +1,4 @@
-# v1.0.1
+# v1.0.2
 from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -6,6 +6,9 @@ from pathlib import Path
 from datetime import datetime, timezone
 from pydantic import BaseModel
 import random
+# Added for version 1.0.2
+import os
+import requests
 
 app = FastAPI(title="Edge Control")
 
@@ -35,19 +38,31 @@ def health():
 def set_power_state(powerOn: bool = Query(...)):
     return PowerStateResponse(powerOn=powerOn)
 
+# Added for v1.0.2
+TEMP_DAEMON_URL = os.getenv("TEMP_DAEMON_URL", "http://localhost:7070")
+
 @app.get("/temperature", response_model=TempResponse)
 def get_temperature():
-    global current_sim_temp
+    try:
+        r = requests.get(f"{TEMP_DAEMON_URL}/read", timeout=1.5)
+        r.raise_for_status()
+        data = r.json()
 
-    delta = random.uniform(-0.5, 0.5)
-    current_sim_temp += delta
+        if data.get("status") != "ok":
+            raise HTTPException(status_code=502, detail=f"Daemon error: {data.get('error', 'unknown')}")
 
-    if current_sim_temp > 30.0:
-        current_sim_temp -= 0.2
-    elif current_sim_temp < 15.0:
-        current_sim_temp += 0.2
+        temp_c = data.get("temp_c")
+        if temp_c is None:
+            raise HTTPException(status_code=502, detail="Daemon response missing temp_c")
 
-    value_c = round(current_sim_temp, 2)
-    ts = datetime.now(timezone.utc).isoformat()
-    return TempResponse(value_c=value_c, timestamp=ts)
+        # Prefer daemon timestamp if present, otherwise generate one
+        ts = data.get("timestamp") or datetime.now(timezone.utc).isoformat()
 
+        return TempResponse(value_c=round(float(temp_c), 2), timestamp=ts)
+
+    except requests.exceptions.RequestException as e:
+        # Daemon unreachable / timeout / bad HTTP
+        raise HTTPException(status_code=502, detail=f"Temperature daemon unavailable: {e}")
+    except ValueError as e:
+        # JSON parse or float conversion issues
+        raise HTTPException(status_code=502, detail=f"Bad daemon response: {e}")

@@ -1,7 +1,62 @@
 services:
+  # ---------------------------
+  # Temperature daemon (PROD)
+  # ---------------------------
+  temp-daemon:
+    image: ghcr.io/carlosotero01/temp-daemon:latest
+    container_name: temp-daemon
+    restart: unless-stopped
+    devices:
+      - "/dev/i2c-1:/dev/i2c-1"
+    profiles: ["prod"]
+
+  # ---------------------------
+  # Temperature daemon (DEV)
+  # ---------------------------
+  temp-daemon-dev:
+    build:
+      context: .
+      dockerfile: daemons/aht30/Dockerfile
+    container_name: temp-daemon-dev
+    restart: unless-stopped
+    devices:
+      - "/dev/i2c-1:/dev/i2c-1"
+    profiles: ["dev"]
+    networks:
+      default:
+        aliases:
+          - temp-daemon
+
+  # ---------------------------
+  # FastAPI + UI (PROD)
+  # ---------------------------
   edge-control:
     image: ghcr.io/carlosotero01/edge-control:latest
     container_name: edge-control
     restart: unless-stopped
     ports:
       - "8000:8000"
+    environment:
+      - TEMP_DAEMON_URL=http://temp-daemon:7070
+    depends_on:
+      - temp-daemon
+    profiles: ["prod"]
+
+  # ---------------------------
+  # FastAPI + UI (DEV)
+  # ---------------------------
+  edge-control-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: edge-control:local
+    container_name: edge-control-dev
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - TEMP_DAEMON_URL=http://temp-daemon:7070
+    depends_on:
+      - temp-daemon-dev
+    profiles: ["dev"]
+
