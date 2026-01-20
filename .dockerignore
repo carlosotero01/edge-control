@@ -5,3 +5,9 @@ __pycache__/
 venv/
 .env
 .DS_Store
+# CMake / build artifacts
+**/build/
+**/CMakeCache.txt
+**/CMakeFiles/
+**/*.o
+**/*.a
